@@ -31,6 +31,7 @@ jobs:
           path: |
             ~/.npm
             node_modules
+            .next/cache
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
@@ -38,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "Installing dependencies..."
-          npm ci --prefer-offline --no-audit
+          npm ci --prefer-offline --no-audit --no-fund
           echo "Installed packages:"
           npm list
           echo "Node version:"
@@ -58,6 +59,10 @@ jobs:
             cat .next/build-manifest.json || true
             cat .next/error.log || true
             cat .next/server/pages-manifest.json || true
+            cat .next/server/middleware-manifest.json || true
+            cat .next/server/app-build-manifest.json || true
+            echo "Checking for build artifacts:"
+            find . -name "*.log" -o -name "*.json" | grep -v "node_modules" || true
             exit 1
           }
         env:
@@ -67,6 +72,10 @@ jobs:
           NEXT_PUBLIC_API_URL: https://daedong-church.github.io/pray
           NEXT_PUBLIC_SITE_URL: https://daedong-church.github.io/pray
           NEXT_SHARP_PATH: /tmp/node_modules/sharp
+          NEXT_RUNTIME: nodejs
+          NEXT_TELEMETRY_DEBUG: 1
+          NEXT_DISABLE_OPTIMIZATION: 1
+          NEXT_DISABLE_IMAGE_OPTIMIZATION: 1
 
       - name: Check build output
         run: |
