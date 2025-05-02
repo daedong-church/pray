@@ -24,12 +24,24 @@ jobs:
           cache-dependency-path: './package-lock.json'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm list
 
       - name: Build
-        run: npm run build
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Building project..."
+          npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Check build output
+        run: |
+          echo "Build output directory contents:"
+          ls -la out/
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
