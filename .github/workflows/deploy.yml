@@ -33,4 +33,5 @@ jobs:
         with:
           folder: out
           branch: gh-pages
-          clean: true 
+          clean: true
+          commit-message: "Deploy to GitHub Pages" 
