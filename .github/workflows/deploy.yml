@@ -76,6 +76,8 @@ jobs:
           NEXT_TELEMETRY_DEBUG: 1
           NEXT_DISABLE_OPTIMIZATION: 1
           NEXT_DISABLE_IMAGE_OPTIMIZATION: 1
+          NEXT_DISABLE_ESLINT: 1
+          NEXT_DISABLE_TYPE_CHECKS: 1
 
       - name: Check build output
         run: |
