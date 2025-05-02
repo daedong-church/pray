@@ -25,8 +25,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          echo "Installing dependencies..."
           npm ci
+          echo "Installed packages:"
           npm list
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
 
       - name: Build
         run: |
@@ -34,14 +40,22 @@ jobs:
           echo "Directory contents:"
           ls -la
           echo "Building project..."
-          npm run build
+          npm run build || {
+            echo "Build failed. Checking for errors..."
+            cat .next/build-error.log || true
+            exit 1
+          }
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          NODE_ENV: production
 
       - name: Check build output
         run: |
           echo "Build output directory contents:"
-          ls -la out/
+          ls -la out/ || {
+            echo "out directory not found. Checking .next directory:"
+            ls -la .next/ || true
+          }
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
