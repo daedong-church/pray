@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -38,4 +35,5 @@ jobs:
           branch: gh-pages
           clean: true
           commit-message: "Deploy to GitHub Pages"
-          force: true 
+          force: true
+          token: ${{ secrets.GITHUB_TOKEN }} 
