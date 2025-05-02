@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -23,10 +25,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './package-lock.json'
 
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: |
           echo "Installing dependencies..."
-          npm ci
+          npm ci --prefer-offline --no-audit
           echo "Installed packages:"
           npm list
           echo "Node version:"
@@ -40,11 +52,12 @@ jobs:
           echo "Directory contents:"
           ls -la
           echo "Building project..."
-          npm run build || {
+          NODE_OPTIONS="--max_old_space_size=4096" npm run build || {
             echo "Build failed. Checking for errors..."
             cat .next/build-error.log || true
             cat .next/build-manifest.json || true
             cat .next/error.log || true
+            cat .next/server/pages-manifest.json || true
             exit 1
           }
         env:
@@ -53,6 +66,7 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /pray
           NEXT_PUBLIC_API_URL: https://daedong-church.github.io/pray
           NEXT_PUBLIC_SITE_URL: https://daedong-church.github.io/pray
+          NEXT_SHARP_PATH: /tmp/node_modules/sharp
 
       - name: Check build output
         run: |
@@ -60,6 +74,8 @@ jobs:
           ls -la out/ || {
             echo "out directory not found. Checking .next directory:"
             ls -la .next/ || true
+            echo "Checking for build artifacts:"
+            find . -name "*.log" -o -name "*.json" | grep -v "node_modules" || true
           }
 
       - name: Deploy
