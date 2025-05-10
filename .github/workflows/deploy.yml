@@ -3,14 +3,15 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # 또는 master, 사용하시는 메인 브랜치 이름으로 변경
+      - main  # 메인 브랜치 이름
 
 permissions:
-  contents: write  # 이 권한 설정을 추가
+  contents: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -23,12 +24,16 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build
+      - name: Build Project
         run: npm run build
 
-      - name: Deploy
+      - name: Add .nojekyll
+        run: echo "" > out/.nojekyll
+
+      - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: out  # Next.js의 경우 out 폴더
-          branch: gh-pages
-          token: ${{ secrets.GITHUB_TOKEN }}  # 토큰 명시적 지정
+          branch: gh-pages         # 배포 대상 브랜치
+          folder: out              # out 디렉토리의 *내용만* 배포
+          clean: true              # 이전 파일 제거
+          token: ${{ secrets.GITHUB_TOKEN }}
