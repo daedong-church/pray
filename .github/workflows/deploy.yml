@@ -1,0 +1,97 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './package-lock.json'
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            .next/cache
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies..."
+          npm ci --prefer-offline --no-audit --no-fund
+          echo "Installed packages:"
+          npm list
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
+
+      - name: Build
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Building project..."
+          NODE_OPTIONS="--max_old_space_size=4096" npm run build || {
+            echo "Build failed. Checking for errors..."
+            cat .next/build-error.log || true
+            cat .next/build-manifest.json || true
+            cat .next/error.log || true
+            cat .next/server/pages-manifest.json || true
+            cat .next/server/middleware-manifest.json || true
+            cat .next/server/app-build-manifest.json || true
+            echo "Checking for build artifacts:"
+            find . -name "*.log" -o -name "*.json" | grep -v "node_modules" || true
+            exit 1
+          }
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_ENV: production
+          NEXT_PUBLIC_BASE_PATH: /pray
+          NEXT_PUBLIC_API_URL: https://daedong-church.github.io/pray
+          NEXT_PUBLIC_SITE_URL: https://daedong-church.github.io/pray
+          NEXT_SHARP_PATH: /tmp/node_modules/sharp
+          NEXT_RUNTIME: nodejs
+          NEXT_TELEMETRY_DEBUG: 1
+          NEXT_DISABLE_OPTIMIZATION: 1
+          NEXT_DISABLE_IMAGE_OPTIMIZATION: 1
+          NEXT_DISABLE_ESLINT: 1
+          NEXT_DISABLE_TYPE_CHECKS: 1
+
+      - name: Check build output
+        run: |
+          echo "Build output directory contents:"
+          ls -la out/ || {
+            echo "out directory not found. Checking .next directory:"
+            ls -la .next/ || true
+            echo "Checking for build artifacts:"
+            find . -name "*.log" -o -name "*.json" | grep -v "node_modules" || true
+          }
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: out
+          branch: gh-pages
+          clean: true
