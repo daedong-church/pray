@@ -26,5 +26,5 @@ jobs:
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: build  # React의 경우 build 폴더
+          folder: out  # Next.js의 경우 out 폴더
           branch: gh-pages
