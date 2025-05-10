@@ -560,7 +560,7 @@ export default function Home() {
                           'modern': '현대적',
                           'literary': '문학적',
                           'emotional': '감성적',
-                          'creative': '창조적'
+                          'creative': '창조적' 
                         }[savedPrayer.style]
                       } | {
                         {
