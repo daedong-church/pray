@@ -558,7 +558,9 @@ export default function Home() {
                         {
                           'traditional': '전통적',
                           'modern': '현대적',
-                          'literary': '문학적'
+                          'literary': '문학적',
+                          'emotional': '감성적',
+                          'creative': '창조적'
                         }[savedPrayer.style]
                       } | {
                         {
