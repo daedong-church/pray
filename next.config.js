@@ -4,8 +4,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  basePath: '/Pray', // GitHub 저장소 이름으로 설정
-  assetPrefix: '/Pray/',
+  basePath: '/pray',  // 저장소 이름이 'pray'이므로 소문자로 수정
+  assetPrefix: '/pray/',
   trailingSlash: true
 }
 
