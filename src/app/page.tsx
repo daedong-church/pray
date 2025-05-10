@@ -4,11 +4,22 @@ import { useState, useEffect } from 'react';
 import { Container, Box, Typography, TextField, Button, FormControl, InputLabel, Select, MenuItem, FormControlLabel, Switch, Radio, RadioGroup, FormLabel, Slider, Alert, Paper } from '@mui/material';
 import PrayerResult from '@/components/PrayerResult';
 import { generatePrayer } from '@/utils/api';
+import { textToSpeech, playAudio } from '@/utils/tts';
 import { saveToWord } from '@/utils/word';
 import { saveSettings, loadSettings, savePrayer, loadPrayers, deletePrayer } from '@/utils/storage';
 import { printPrayer } from '@/utils/print';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from '@/utils/tts';
+
+// SavedPrayer 타입 정의 추가
+interface SavedPrayer {
+  id: string;
+  date: string;
+  serviceType: string;
+  style: string;
+  audience: string;
+  length: number;
+  content: string;
+}
 
 export default function Home() {
   const [apiKey, setApiKey] = useState('');
@@ -24,6 +35,7 @@ export default function Home() {
   const [prayerGenerationError, setPrayerGenerationError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  // savedPrayers 상태 변수 추가
   const [savedPrayers, setSavedPrayers] = useState<SavedPrayer[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrayer, setEditedPrayer] = useState('');
@@ -140,8 +152,8 @@ export default function Home() {
 
   const handleTTS = async () => {
     try {
-      const audioContent = await speak(prayer);
-      // playAudio(audioContent);
+      const audioContent = await textToSpeech(prayer);
+      playAudio(audioContent);
     } catch (err) {
       setPrayerGenerationError(err instanceof Error ? err.message : '음성 변환 중 오류가 발생했습니다.');
     }
@@ -234,7 +246,6 @@ export default function Home() {
       setTimeout(() => setPrayerGenerationError(''), 3000);
     }
   };
-
   // 기도문 삭제 핸들러 수정
   const handleDelete = (id: string) => {
     setDialog({
@@ -413,7 +424,7 @@ export default function Home() {
             {/* 기도 순서 구조 */}
             <FormControl sx={{ width: 90 }}>
               <Typography variant="caption" gutterBottom>
-                기도 구조 사용
+                기도 순서 구조
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Switch

@@ -1,12 +1,11 @@
-'use client';
-
-import { Box, Typography, Button, IconButton, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, Button, IconButton, Select, MenuItem, FormControl, InputLabel, Tooltip } from '@mui/material';
 import { useState, useEffect, useRef } from 'react';
-import AudioPlayer from './AudioPlayer';
-import { synthesizeSpeech, speak, stopSpeaking, pauseSpeaking, resumeSpeaking, isSpeaking, isPaused, getKoreanVoices, speakWithSentenceHighlight } from '@/utils/tts';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import StopIcon from '@mui/icons-material/Stop';
 import PauseIcon from '@mui/icons-material/Pause';
+import StopIcon from '@mui/icons-material/Stop';
+import MicIcon from '@mui/icons-material/Mic';
+import MicOffIcon from '@mui/icons-material/MicOff';
+import SaveIcon from '@mui/icons-material/Save';
 
 interface PrayerResultProps {
   prayer: string;
@@ -14,8 +13,12 @@ interface PrayerResultProps {
   onSave: (editedContent: string) => void;
   onPrint: () => void;
   onSaveToWord: () => void;
+  onTTS: () => void;
   onSaveToPrayerList: () => void;
 }
+
+// TTS 서비스 타입 정의
+type TTSService = 'web' | 'microsoft' | 'google';
 
 export default function PrayerResult({
   prayer,
@@ -23,226 +26,269 @@ export default function PrayerResult({
   onSave,
   onPrint,
   onSaveToWord,
+  onTTS,
   onSaveToPrayerList,
 }: PrayerResultProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrayer, setEditedPrayer] = useState(prayer);
-  const [audioContent, setAudioContent] = useState<Uint8Array | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isPausedState, setIsPausedState] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<string>('');
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [highlightRange, setHighlightRange] = useState<{ start: number; end: number }>({ start: -1, end: -1 });
-
-  const prayerBoxRef = useRef<HTMLDivElement>(null);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [currentHighlight, setCurrentHighlight] = useState<number>(-1);
+  const [selectedTTS, setSelectedTTS] = useState<TTSService>('web');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     setEditedPrayer(prayer);
   }, [prayer]);
 
   useEffect(() => {
-    function loadVoices() {
-      const availableVoices = window.speechSynthesis.getVoices();
-      const koreanVoices = availableVoices.filter(voice => 
-        voice.lang.includes('ko') || voice.lang.includes('ko-KR')
-      );
-      
-      console.log('사용 가능한 한국어 음성:', koreanVoices);
-      setVoices(koreanVoices);
-      
-      // Google 음성을 찾아서 기본값으로 설정
-      const googleVoice = koreanVoices.find(voice => 
-        voice.name.toLowerCase().includes('google') || 
-        voice.voiceURI.toLowerCase().includes('google')
-      );
-      
-      if (googleVoice && !selectedVoice) {
-        setSelectedVoice(googleVoice.voiceURI);
-      } else if (koreanVoices.length > 0 && !selectedVoice) {
-        // Google 음성이 없는 경우 첫 번째 음성 선택
-        setSelectedVoice(koreanVoices[0].voiceURI);
-      }
+    if (typeof window !== 'undefined') {
+      setSpeechSynthesis(window.speechSynthesis);
     }
-
-    loadVoices();
-
-    if (window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-
-    const interval = setInterval(() => {
-      setIsPlaying(isSpeaking());
-      setIsPausedState(isPaused());
-    }, 100);
-
-    return () => {
-      clearInterval(interval);
-      stopSpeaking();
-    };
   }, []);
-
-  // 기도문이 바뀌면 하이라이트 초기화
-  useEffect(() => {
-    setHighlightRange({ start: -1, end: -1 });
-  }, [prayer]);
-
-  // 하이라이트된 글자가 보이도록 스크롤
-  useEffect(() => {
-    if (highlightRange.start >= 0) {
-      const el = document.getElementById(`char-${highlightRange.start}`);
-      if (el && prayerBoxRef.current) {
-        const container = prayerBoxRef.current;
-        const elTop = el.offsetTop;
-        const containerTop = container.scrollTop;
-        const containerHeight = container.clientHeight;
-        
-        if (elTop < containerTop || elTop > containerTop + containerHeight) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    }
-  }, [highlightRange]);
 
   const handleEdit = () => {
     setIsEditing(true);
+    setIsExpanded(true);
     onEdit();
   };
 
   const handleSave = () => {
     setIsEditing(false);
+    setIsExpanded(false);
     onSave(editedPrayer);
   };
 
-  const handleTTS = async () => {
-    try {
-      const content = await synthesizeSpeech(editedPrayer);
-      setAudioContent(content);
-    } catch (error) {
-      console.error('음성 변환 실패:', error);
-    }
+  const splitSentences = (text: string): string[] => {
+    const paragraphs = text.split(/\n\s*\n/);
+    const result: string[] = [];
+
+    paragraphs.forEach(paragraph => {
+      const parts = paragraph
+        .split(/([,.])/g)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      for (let i = 0; i < parts.length; i += 2) {
+        const sentence = parts[i];
+        const punctuation = parts[i + 1] || '';
+        result.push(sentence + punctuation);
+      }
+    });
+
+    return result;
   };
 
-  const handlePlay = async () => {
-    try {
-      setIsPlaying(true);
-      setHighlightRange({ start: -1, end: -1 });
+  // TTS 서비스별 재생 함수
+  const playTTS = () => {
+    if (!speechSynthesis) return;
 
-      await speakWithSentenceHighlight(
-        prayer,
-        selectedVoice,
-        (start, end) => {
-          setHighlightRange({ start, end });
-          // 스크롤
-          if (start >= 0) {
-            const el = document.getElementById(`char-${start}`);
-            if (el && prayerBoxRef.current) {
-              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          }
+    if (isPlaying) {
+      speechSynthesis.pause();
+      setIsPlaying(false);
+      setIsExpanded(false);
+    } else {
+      setIsExpanded(true);
+      const sentences = splitSentences(editedPrayer);
+      let currentIndex = 0;
+
+      const speakNextSentence = () => {
+        if (currentIndex >= sentences.length) {
+          setIsPlaying(false);
+          setCurrentHighlight(-1);
+          return;
         }
-      );
 
-      setIsPlaying(false);
-      setHighlightRange({ start: -1, end: -1 });
-    } catch (error) {
-      setIsPlaying(false);
-      setHighlightRange({ start: -1, end: -1 });
+        switch (selectedTTS) {
+          case 'web':
+            // Web Speech API
+            const utterance = new SpeechSynthesisUtterance(sentences[currentIndex]);
+            utterance.lang = 'ko-KR';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            utterance.onend = () => {
+              currentIndex++;
+              setCurrentHighlight(currentIndex);
+              speakNextSentence();
+            };
+            setCurrentHighlight(currentIndex);
+            speechSynthesis.speak(utterance);
+            break;
+
+          case 'microsoft':
+            // Microsoft Edge TTS
+            const msUtterance = new SpeechSynthesisUtterance(sentences[currentIndex]);
+            msUtterance.lang = 'ko-KR';
+            msUtterance.voice = speechSynthesis.getVoices().find(voice => 
+              voice.name.includes('Microsoft') && voice.lang.includes('ko')
+            ) || null;
+            msUtterance.onend = () => {
+              currentIndex++;
+              setCurrentHighlight(currentIndex);
+              speakNextSentence();
+            };
+            setCurrentHighlight(currentIndex);
+            speechSynthesis.speak(msUtterance);
+            break;
+
+          case 'google':
+            // Google TTS
+            const googleTTS = new SpeechSynthesisUtterance(sentences[currentIndex]);
+            googleTTS.lang = 'ko-KR';
+            // Google 음성 선택
+            const voices = speechSynthesis.getVoices();
+            const googleVoice = voices.find(voice => 
+              voice.name.includes('Google') && voice.lang.includes('ko')
+            ) || voices.find(voice => 
+              voice.name.includes('Google')
+            ) || null;
+            
+            if (googleVoice) {
+              googleTTS.voice = googleVoice;
+            }
+            
+            googleTTS.onend = () => {
+              currentIndex++;
+              setCurrentHighlight(currentIndex);
+              speakNextSentence();
+            };
+            setCurrentHighlight(currentIndex);
+            speechSynthesis.speak(googleTTS);
+            break;
+        }
+      };
+
+      speakNextSentence();
+      setIsPlaying(true);
     }
   };
 
-  const handlePause = () => {
-    pauseSpeaking();
-    setIsPausedState(true);
-  };
+  const stopTTS = () => {
+    if (!speechSynthesis) return;
 
-  const handleStop = () => {
-    stopSpeaking();
+    speechSynthesis.cancel();
     setIsPlaying(false);
-    setIsPausedState(false);
-    setHighlightRange({ start: -1, end: -1 });
+    setCurrentHighlight(-1);
+    setIsExpanded(false);
   };
 
-  // 마크다운을 HTML로 변환하는 함수
+  const scrollToHighlightedText = () => {
+    if (currentHighlight === -1) return;
+
+    const highlightedElement = document.querySelector(`[data-sentence-index="${currentHighlight}"]`);
+    if (highlightedElement) {
+      highlightedElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  };
+
+  useEffect(() => {
+    scrollToHighlightedText();
+  }, [currentHighlight]);
+
   const convertToHtml = (text: string) => {
-    // ## 로 시작하는 헤더를 변환
-    let html = text.replace(/## (.*)\n/g, '<h2 style="color: #1976d2; font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 1rem;">$1</h2>');
+    const paragraphs = text.split(/\n\s*\n/); // 문단 기준 분리
+    let globalIndex = 0;
+    let html = '';
+
+    paragraphs.forEach((paragraph) => {
+      const parts = paragraph
+        .split(/([,.])/g)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      let paragraphHtml = '';
+
+      for (let i = 0; i < parts.length; i += 2) {
+        const sentence = parts[i];
+        const punctuation = parts[i + 1] || '';
+        const fullSentence = sentence + punctuation;
+
+        const isHighlighted = globalIndex === currentHighlight;
+        const style = isHighlighted ? 'background-color: #ffeb3b;' : '';
+
+        const sentenceHtml = fullSentence
+          .replace(/## (.*)/g, '<h2 style="color: #1976d2; font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 1rem;">$1</h2>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em style="color: #666;">$1</em>')
+          .replace(/> (.*)/g, '<blockquote style="border-left: 4px solid #90caf9; padding-left: 1rem; margin: 1rem 0; background-color: #f5f5f5;"><p style="margin: 0.5rem 0;">$1</p></blockquote>');
     
-    // 볼드체 변환 (**텍스트**)
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>');
-    
-    // 이탤릭체 변환 (*텍스트*)
-    html = html.replace(/\*(.*?)\*/g, '<em style="color: #666;">$1</em>');
-    
-    // 인용구 변환 (> 텍스트)
-    html = html.replace(/> (.*)\n/g, '<blockquote style="border-left: 4px solid #90caf9; padding-left: 1rem; margin: 1rem 0; background-color: #f5f5f5;"><p style="margin: 0.5rem 0;">$1</p></blockquote>');
-    
-    // 줄바꿈 처리
-    html = html.replace(/\n\n/g, '</p><p style="margin: 1rem 0;">');
-    html = html.replace(/\n/g, '<br>');
-    
-    // 전체 텍스트를 p 태그로 감싸기
-    html = `<p style="margin: 1rem 0;">${html}</p>`;
+        paragraphHtml += `<span data-sentence-index="${globalIndex}" style="${style}">${sentenceHtml}</span> `;
+        globalIndex++;
+      }
+
+      html += `<p style="margin: 1rem 0;">${paragraphHtml.trim()}</p>`;
+    });
     
     return html;
   };
 
-  const renderPrayerWithHighlight = (text: string) => {
-    let globalIdx = 0;
-    return (
-      <div>
-        {text.split('\n').map((paragraph, pIdx, arr) => {
-          const chars = paragraph.split('');
-          const p = (
-            <p key={pIdx} style={{ margin: '0 0 1rem 0', lineHeight: '1.8' }}>
-              {chars.map((char, cIdx) => {
-                const idx = globalIdx + cIdx;
-                const isHighlighted =
-                  idx >= highlightRange.start && idx < highlightRange.end;
-                return (
-                  <span
-                    key={idx}
-                    id={`char-${idx}`}
-                    style={{
-                      backgroundColor: isHighlighted ? '#ffe082' : 'transparent',
-                      color: isHighlighted ? '#d84315' : 'inherit',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {char}
-                  </span>
-                );
-              })}
-            </p>
-          );
-          globalIdx += chars.length;
-          // 줄바꿈(\n)도 인덱스에 포함
-          if (pIdx < arr.length - 1) globalIdx += 1;
-          return p;
-        })}
-      </div>
-    );
+  // 녹음 시작 함수
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        setAudioBlob(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('녹음 시작 실패:', error);
+      alert('녹음을 시작할 수 없습니다. 마이크 권한을 확인해주세요.');
+    }
+  };
+
+  // 녹음 중지 함수
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+    }
+  };
+
+  // 녹음 파일 저장 함수
+  const saveRecording = () => {
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `기도문_녹음_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
     <Box>
-      <Box sx={{ mt: 2, mb: 3 }}>
-        {isEditing ? (
-          <textarea
-            value={editedPrayer}
-            onChange={(e) => setEditedPrayer(e.target.value)}
-            style={{
-              width: '100%',
-              minHeight: '550px',
-              padding: '1rem',
-              fontSize: '1rem',
-              lineHeight: '1.8',
-              fontFamily: '"나눔명조", serif',
-            }}
-          />
-        ) : (
           <Box
-            ref={prayerBoxRef}
             sx={{
+          mt: 2, 
+          mb: 3,
+          height: '500px',
+          transition: 'height 0.3s ease-in-out',
+          overflow: 'auto',
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: 1,
@@ -250,127 +296,152 @@ export default function PrayerResult({
               backgroundColor: '#fff',
               fontFamily: '"나눔명조", serif',
               fontSize: '1rem',
+              lineHeight: 1.8,
               color: 'text.primary',
-              minHeight: '200px',
-              maxHeight: '550px',
-              overflowY: 'auto',
-              mb: 2,
-              '& p': {
-                margin: '0 0 1rem 0',
-                lineHeight: 1.8,
-                '&:last-child': {
-                  marginBottom: 0
+              '& h2': {
+                color: 'primary.main',
+                fontSize: '1.2rem',
+                fontWeight: 600,
+                mt: 3,
+                mb: 2,
+                '&:first-of-type': {
+              mt: 0
                 }
-              }
+              },
+              '& blockquote': {
+                borderLeft: '4px solid',
+                borderColor: 'primary.light',
+                bgcolor: 'grey.50',
+                px: 2,
+                py: 1,
+                my: 2,
+              },
+              '& p': {
+            my: 1.5
+          }
+        }}
+      >
+        {isEditing ? (
+          <textarea
+            value={editedPrayer}
+            onChange={(e) => setEditedPrayer(e.target.value)}
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '1rem',
+              fontSize: '1rem',
+              lineHeight: '1.8',
+              fontFamily: '"나눔명조", serif',
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              backgroundColor: 'transparent'
             }}
-          >
-            {renderPrayerWithHighlight(prayer)}
-          </Box>
+          />
+        ) : (
+          <Box
+            sx={{
+              height: '100%',
+              overflow: 'auto',
+            }}
+            dangerouslySetInnerHTML={{ __html: convertToHtml(editedPrayer) }}
+          />
         )}
       </Box>
 
-      {audioContent && <AudioPlayer audioContent={audioContent} />}
-      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {/* 첫 번째 그룹: 수정/출력/Word 저장 버튼 */}
-          <Box sx={{ display: 'flex', gap: 1, mr: 2 }}>  {/* gap을 2에서 1로 줄이고, 오른쪽 마진 추가 */}
-            <Button
-              variant="contained"
-              onClick={isEditing ? handleSave : handleEdit}
-            >
-              {isEditing ? '수정 완료' : '수정하기'}
-            </Button>
-            <Button variant="outlined" onClick={onPrint}>
-              출력하기
-            </Button>
-            <Button variant="outlined" onClick={onSaveToWord}>
-              Word저장
-            </Button>
-          </Box>
-
-          {/* 두 번째 그룹: 음성 제어 */}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="voice-select-label">음성 선택</InputLabel>
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={isEditing ? handleSave : handleEdit}
+            sx={{ minWidth: '80px' }}
+          >
+            {isEditing ? '수정완료' : '수정하기'}
+          </Button>
+          <Button 
+            variant="outlined" 
+            size="small"
+            onClick={onPrint}
+            sx={{ minWidth: '80px' }}
+          >
+            출력하기
+          </Button>
+          <Button 
+            variant="outlined" 
+            size="small"
+            onClick={onSaveToWord}
+            sx={{ minWidth: '80px' }}
+          >
+            Word저장
+          </Button>
+          <Box sx={{ ml: 3, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel id="tts-select-label">음성(TTS)</InputLabel>
               <Select
-                labelId="voice-select-label"
-                value={selectedVoice}
-                label="음성 선택"
-                onChange={(e) => setSelectedVoice(e.target.value)}
-                disabled={isPlaying && !isPausedState}
+                labelId="tts-select-label"
+                value={selectedTTS}
+                onChange={(e) => setSelectedTTS(e.target.value as TTSService)}
+                size="small"
+                label="음성(TTS)"
               >
-                {voices.map((voice) => {
-                  let company = '';
-                  if (voice.name.toLowerCase().includes('google') || voice.voiceURI.toLowerCase().includes('google')) {
-                    company = 'Google';
-                  } else if (voice.name.toLowerCase().includes('microsoft') || voice.voiceURI.toLowerCase().includes('microsoft')) {
-                    company = 'Microsoft';
-                  } else {
-                    company = '기타';
-                  }
-                  return (
-                    <MenuItem key={voice.voiceURI} value={voice.voiceURI}>
-                      {company}
-                    </MenuItem>
-                  );
-                })}
+                <MenuItem value="web">Web Speech API</MenuItem>
+                <MenuItem value="microsoft">Microsoft Edge TTS</MenuItem>
+                <MenuItem value="google">Google Translate TTS</MenuItem>
               </Select>
             </FormControl>
-
-            {(!isPlaying || isPausedState) ? (
+            <Tooltip title="TTS 재생">
               <IconButton 
-                onClick={handlePlay} 
-                color="primary"
-                title={isPausedState ? "계속 재생" : "재생"}
-                sx={{ 
-                  backgroundColor: '#e3f2fd',
-                  '&:hover': { backgroundColor: '#bbdefb' }
-                }}
+                onClick={playTTS}
+                color={isPlaying ? "primary" : "default"}
+                size="small"
               >
-                <PlayArrowIcon />
+                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
               </IconButton>
-            ) : (
+            </Tooltip>
+            <Tooltip title="TTS 중지">
               <IconButton 
-                onClick={handlePause} 
-                color="primary"
-                title="일시정지"
-                sx={{ 
-                  backgroundColor: '#e3f2fd',
-                  '&:hover': { backgroundColor: '#bbdefb' }
-                }}
+                onClick={stopTTS}
+                color="default"
+                size="small"
               >
-                <PauseIcon />
+                <StopIcon />
               </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ ml: 2, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title={isRecording ? "녹음 중지" : "녹음 시작"}>
+              <IconButton 
+                onClick={isRecording ? stopRecording : startRecording}
+                color={isRecording ? "error" : "default"}
+                size="small"
+              >
+                {isRecording ? <MicOffIcon /> : <MicIcon />}
+              </IconButton>
+            </Tooltip>
+            {audioBlob && (
+              <Tooltip title="녹음 파일 저장">
+                <IconButton 
+                  onClick={saveRecording}
+                  color="primary"
+                  size="small"
+                >
+                  <SaveIcon />
+                </IconButton>
+              </Tooltip>
             )}
-
-            <IconButton 
-              onClick={handleStop} 
-              color="primary"
-              title="중지"
-              disabled={!isPlaying && !isPausedState}
-              sx={{ 
-                backgroundColor: '#e3f2fd',
-                '&:hover': { backgroundColor: '#bbdefb' },
-                '&.Mui-disabled': { 
-                  backgroundColor: '#f5f5f5',
-                  color: 'rgba(0, 0, 0, 0.26)' 
-                }
-              }}
-            >
-              <StopIcon />
-            </IconButton>
           </Box>
         </Box>
-
         <Button 
           variant="contained" 
           color="primary" 
+          size="small"
           onClick={onSaveToPrayerList}
+          sx={{ minWidth: '100px' }}
         >
           기도문 저장
         </Button>
       </Box>
     </Box>
   );
-}
+} 

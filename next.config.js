@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
-  basePath: '/pray',
   images: {
     unoptimized: true,
   },
+  basePath: '/Pray', // GitHub 저장소 이름으로 설정
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig
