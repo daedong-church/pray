@@ -5,6 +5,9 @@ on:
     branches:
       - main  # 또는 master, 사용하시는 메인 브랜치 이름으로 변경
 
+permissions:
+  contents: write  # 이 권한 설정을 추가
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -28,3 +31,4 @@ jobs:
         with:
           folder: out  # Next.js의 경우 out 폴더
           branch: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}  # 토큰 명시적 지정
