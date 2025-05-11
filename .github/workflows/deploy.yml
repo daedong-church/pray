@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # 메인 브랜치 이름
+      - main  # 메인 브랜치 이름에 따라 수정 (예: master)
 
 permissions:
   contents: write
@@ -13,27 +13,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout source code
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install dependencies
+        run: npm install  # `npm ci`를 `npm install`로 변경할 수 있습니다
 
-      - name: Build Project
-        run: npm run build
+      - name: Build static site
+        run: npm run build  # 이 명령이 빌드 후 `out/` 디렉터리를 생성해야 합니다
 
-      - name: Add .nojekyll
-        run: echo "" > out/.nojekyll
+      - name: Create .nojekyll
+        run: echo "" > out/.nojekyll  # .nojekyll 파일 생성 (GitHub Pages에서 Jekyll을 사용하지 않도록)
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          branch: gh-pages         # 배포 대상 브랜치
-          folder: out              # out 디렉토리의 *내용만* 배포
-          clean: true              # 이전 파일 제거
-          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages  # 배포 대상 브랜치
+          folder: out       # out 디렉터리의 내용만 배포
+          clean: true       # 이전 파일 제거
+          token: ${{ secrets.GITHUB_TOKEN }}  # GitHub 토큰을 사용하여 인증
