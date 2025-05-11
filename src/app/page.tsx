@@ -565,12 +565,14 @@ export default function Home() {
                       } | {
                         {
                           'believer': '성도',
-                          'pastor': '목회자',
-                          'elder': '장로',
                           'children': '어린이',
                           'youth': '청소년',
                           'youngAdult': '청년',
-                          'adult': '장년'
+                          'patient': '환자',
+                          'funeral': '장례',
+                          'wedding': '결혼',
+                          'business': '개업',
+                          'hospital': '병원'
                         }[savedPrayer.audience]
                       } | {savedPrayer.length}분
                     </Typography>
