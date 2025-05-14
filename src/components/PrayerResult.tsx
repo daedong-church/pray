@@ -40,6 +40,7 @@ export default function PrayerResult({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     setEditedPrayer(prayer);
@@ -49,6 +50,19 @@ export default function PrayerResult({
     if (typeof window !== 'undefined') {
       setSpeechSynthesis(window.speechSynthesis);
     }
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 600);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
   }, []);
 
   const handleEdit = () => {
@@ -85,7 +99,10 @@ export default function PrayerResult({
 
   // TTS 서비스별 재생 함수
   const playTTS = () => {
-    if (!speechSynthesis) return;
+    if (!speechSynthesis) {
+      alert('이 브라우저는 음성 합성을 지원하지 않습니다.');
+      return;
+    }
 
     if (isPlaying) {
       speechSynthesis.pause();
@@ -103,64 +120,41 @@ export default function PrayerResult({
           return;
         }
 
-        switch (selectedTTS) {
-          case 'web':
-            // Web Speech API
-            const utterance = new SpeechSynthesisUtterance(sentences[currentIndex]);
-            utterance.lang = 'ko-KR';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
-            utterance.onend = () => {
-              currentIndex++;
-              setCurrentHighlight(currentIndex);
-              speakNextSentence();
-            };
-            setCurrentHighlight(currentIndex);
-            speechSynthesis.speak(utterance);
-            break;
+        // 모바일에서는 Web Speech API만 사용
+        const utterance = new SpeechSynthesisUtterance(sentences[currentIndex]);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
 
-          case 'microsoft':
-            // Microsoft Edge TTS
-            const msUtterance = new SpeechSynthesisUtterance(sentences[currentIndex]);
-            msUtterance.lang = 'ko-KR';
-            msUtterance.voice = speechSynthesis.getVoices().find(voice => 
-              voice.name.includes('Microsoft') && voice.lang.includes('ko')
-            ) || null;
-            msUtterance.onend = () => {
-              currentIndex++;
-              setCurrentHighlight(currentIndex);
-              speakNextSentence();
-            };
-            setCurrentHighlight(currentIndex);
-            speechSynthesis.speak(msUtterance);
-            break;
-
-          case 'google':
-            // Google TTS
-            const googleTTS = new SpeechSynthesisUtterance(sentences[currentIndex]);
-            googleTTS.lang = 'ko-KR';
-            // Google 음성 선택
-            const voices = speechSynthesis.getVoices();
-            const googleVoice = voices.find(voice => 
-              voice.name.includes('Google') && voice.lang.includes('ko')
-            ) || voices.find(voice => 
-              voice.name.includes('Google')
-            ) || null;
-            
-            if (googleVoice) {
-              googleTTS.voice = googleVoice;
-            }
-            
-            googleTTS.onend = () => {
-              currentIndex++;
-              setCurrentHighlight(currentIndex);
-              speakNextSentence();
-            };
-            setCurrentHighlight(currentIndex);
-            speechSynthesis.speak(googleTTS);
-            break;
+        // 모바일이 아닐 때만 추가 음성 선택
+        if (!isMobile) {
+          const voices = speechSynthesis.getVoices();
+          const koreanVoice = voices.find(voice => 
+            voice.lang.includes('ko') && 
+            (selectedTTS === 'microsoft' ? voice.name.includes('Microsoft') :
+             selectedTTS === 'google' ? voice.name.includes('Google') : true)
+          );
+          if (koreanVoice) {
+            utterance.voice = koreanVoice;
+          }
         }
+
+        utterance.onend = () => {
+          currentIndex++;
+          setCurrentHighlight(currentIndex);
+          speakNextSentence();
+        };
+
+        utterance.onerror = (event) => {
+          console.error('TTS 오류:', event);
+          alert('음성 재생 중 오류가 발생했습니다.');
+          setIsPlaying(false);
+          setCurrentHighlight(-1);
+        };
+
+        setCurrentHighlight(currentIndex);
+        speechSynthesis.speak(utterance);
       };
 
       speakNextSentence();
@@ -417,10 +411,15 @@ export default function PrayerResult({
                 onChange={(e) => setSelectedTTS(e.target.value as TTSService)}
                 size="small"
                 label="음성(TTS)"
+                disabled={isMobile}
               >
                 <MenuItem value="web">Web Speech API</MenuItem>
-                <MenuItem value="microsoft">Microsoft Edge TTS</MenuItem>
-                <MenuItem value="google">Google Translate TTS</MenuItem>
+                {!isMobile && (
+                  <>
+                    <MenuItem value="microsoft">Microsoft Edge TTS</MenuItem>
+                    <MenuItem value="google">Google Translate TTS</MenuItem>
+                  </>
+                )}
               </Select>
             </FormControl>
             <Box sx={{ 
