@@ -391,6 +391,8 @@ export default function Home() {
                 <MenuItem value="traditional">전통적</MenuItem>
                 <MenuItem value="modern">현대적</MenuItem>
                 <MenuItem value="literary">문학적</MenuItem>
+                <MenuItem value="emotional">감성적</MenuItem>
+                <MenuItem value="creative">창조적</MenuItem>
               </Select>
             </FormControl>
 
@@ -412,12 +414,15 @@ export default function Home() {
                 required
               >
                 <MenuItem value="believer">성도</MenuItem>
-                <MenuItem value="pastor">목회자</MenuItem>
-                <MenuItem value="elder">장로</MenuItem>
                 <MenuItem value="children">어린이</MenuItem>
                 <MenuItem value="youth">청소년</MenuItem>
                 <MenuItem value="youngAdult">청년</MenuItem>
                 <MenuItem value="adult">장년</MenuItem>
+                <MenuItem value="patient">환자</MenuItem>
+                <MenuItem value="funeral">장례</MenuItem>
+                <MenuItem value="wedding">결혼</MenuItem>
+                <MenuItem value="business">개업</MenuItem>
+                <MenuItem value="hospital">병원</MenuItem>
               </Select>
             </FormControl>
 
