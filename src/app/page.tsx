@@ -265,17 +265,24 @@ export default function Home() {
   return (
     <Container maxWidth="md">
       {/* 홈 화면 영역 */}
-      <Paper elevation={3} sx={{ my: 4, p: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
+      <Paper elevation={3} sx={{ my: { xs: 2, sm: 3, md: 4 }, p: { xs: 2, sm: 3, md: 4 } }}>
+        <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ 
+          fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+        }}>
           기도문 작성 프로그램
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 2 }, 
+          alignItems: { xs: 'stretch', sm: 'center' } 
+        }}>
           <TextField
             sx={{ 
               flex: 1,
               '& .MuiInputBase-root': {
-                height: 40  // 기본 높이의 약 2/3로 조정
+                height: { xs: 36, sm: 40 }
               }
             }}
             label="API Key"
@@ -284,28 +291,28 @@ export default function Home() {
             onChange={(e) => setApiKey(e.target.value)}
             margin="normal"
             required
-            size="small"  // 크기를 작게 설정
+            size="small"
           />
           <Button
             variant="contained"
             color="primary"
             onClick={handleSaveSettings}
             sx={{ 
-              height: 40,  // TextField와 동일한 높이로 설정
-              mt: '8px'   // margin-top을 TextField의 margin-normal과 맞춤
+              height: { xs: 36, sm: 40 },
+              mt: { xs: 0, sm: '8px' }
             }}
           >
             저장
           </Button>
           <FormControl 
             sx={{ 
-              minWidth: 200,
+              minWidth: { xs: '100%', sm: 200 },
               '& .MuiInputBase-root': {
-                height: 40  // TextField와 동일한 높이로 설정
+                height: { xs: 36, sm: 40 }
               }
             }} 
             margin="normal"
-            size="small"  // 크기를 작게 설정
+            size="small"
           >
             <InputLabel>API 모델</InputLabel>
             <Select
@@ -342,16 +349,22 @@ export default function Home() {
             </Alert>
           )}
 
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 1, sm: 2 }, 
+            mb: 2, 
+            alignItems: { xs: 'stretch', sm: 'center' } 
+          }}>
             {/* 예배 종류 */}
             <FormControl 
               sx={{ 
                 flex: 1,
                 '& .MuiInputBase-root': {
-                  height: 40  // 버튼 높이와 동일하게 설정
+                  height: { xs: 36, sm: 40 }
                 }
               }}
-              size="small"  // 전체적인 크기를 작게
+              size="small"
             >
               <InputLabel>예배 종류</InputLabel>
               <Select
@@ -376,7 +389,7 @@ export default function Home() {
               sx={{ 
                 flex: 1,
                 '& .MuiInputBase-root': {
-                  height: 40
+                  height: { xs: 36, sm: 40 }
                 }
               }}
               size="small"
@@ -401,7 +414,7 @@ export default function Home() {
               sx={{ 
                 flex: 1,
                 '& .MuiInputBase-root': {
-                  height: 40
+                  height: { xs: 36, sm: 40 }
                 }
               }}
               size="small"
@@ -464,8 +477,9 @@ export default function Home() {
               disabled={loading}
               size="medium"
               sx={{ 
-                height: 40,
-                whiteSpace: 'nowrap'
+                height: { xs: 36, sm: 40 },
+                whiteSpace: 'nowrap',
+                width: { xs: '100%', sm: 'auto' }
               }}
             >
               {loading ? '생성 중...' : '기도문 생성'}

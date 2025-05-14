@@ -286,21 +286,21 @@ export default function PrayerResult({
             sx={{
           mt: 2, 
           mb: 3,
-          height: '500px',
+          height: { xs: '300px', sm: '400px', md: '500px' },
           transition: 'height 0.3s ease-in-out',
           overflow: 'auto',
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: 1,
-              p: 3,
+              p: { xs: 2, sm: 3 },
               backgroundColor: '#fff',
               fontFamily: '"나눔명조", serif',
-              fontSize: '1rem',
+              fontSize: { xs: '0.9rem', sm: '1rem' },
               lineHeight: 1.8,
               color: 'text.primary',
               '& h2': {
                 color: 'primary.main',
-                fontSize: '1.2rem',
+                fontSize: { xs: '1.1rem', sm: '1.2rem' },
                 fontWeight: 600,
                 mt: 3,
                 mb: 2,
@@ -312,12 +312,12 @@ export default function PrayerResult({
                 borderLeft: '4px solid',
                 borderColor: 'primary.light',
                 bgcolor: 'grey.50',
-                px: 2,
-                py: 1,
-                my: 2,
+                px: { xs: 1, sm: 2 },
+                py: { xs: 0.5, sm: 1 },
+                my: { xs: 1, sm: 2 },
               },
               '& p': {
-            my: 1.5
+            my: { xs: 1, sm: 1.5 }
           }
         }}
       >
@@ -349,13 +349,27 @@ export default function PrayerResult({
         )}
       </Box>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        gap: { xs: 1, sm: 2 },
+        mt: 2 
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 0.5 },
+          width: { xs: '100%', sm: 'auto' }
+        }}>
           <Button
             variant="contained"
             size="small"
             onClick={isEditing ? handleSave : handleEdit}
-            sx={{ minWidth: '80px' }}
+            sx={{ 
+              minWidth: { xs: '100%', sm: '80px' },
+              height: { xs: 36, sm: 40 }
+            }}
           >
             {isEditing ? '수정완료' : '수정하기'}
           </Button>
@@ -363,7 +377,10 @@ export default function PrayerResult({
             variant="outlined" 
             size="small"
             onClick={onPrint}
-            sx={{ minWidth: '80px' }}
+            sx={{ 
+              minWidth: { xs: '100%', sm: '80px' },
+              height: { xs: 36, sm: 40 }
+            }}
           >
             출력하기
           </Button>
@@ -371,12 +388,28 @@ export default function PrayerResult({
             variant="outlined" 
             size="small"
             onClick={onSaveToWord}
-            sx={{ minWidth: '80px' }}
+            sx={{ 
+              minWidth: { xs: '100%', sm: '80px' },
+              height: { xs: 36, sm: 40 }
+            }}
           >
             Word저장
           </Button>
-          <Box sx={{ ml: 3, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+          <Box sx={{ 
+            ml: { xs: 0, sm: 3 }, 
+            mt: { xs: 1, sm: 0 },
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' }, 
+            gap: { xs: 1, sm: 0.5 } 
+          }}>
+            <FormControl 
+              size="small" 
+              sx={{ 
+                minWidth: { xs: '100%', sm: 120 },
+                height: { xs: 36, sm: 40 }
+              }}
+            >
               <InputLabel id="tts-select-label">음성(TTS)</InputLabel>
               <Select
                 labelId="tts-select-label"
@@ -390,26 +423,39 @@ export default function PrayerResult({
                 <MenuItem value="google">Google Translate TTS</MenuItem>
               </Select>
             </FormControl>
-            <Tooltip title="TTS 재생">
-              <IconButton 
-                onClick={playTTS}
-                color={isPlaying ? "primary" : "default"}
-                size="small"
-              >
-                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="TTS 중지">
-              <IconButton 
-                onClick={stopTTS}
-                color="default"
-                size="small"
-              >
-                <StopIcon />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: { xs: 'center', sm: 'flex-start' },
+              gap: 0.5 
+            }}>
+              <Tooltip title="TTS 재생">
+                <IconButton 
+                  onClick={playTTS}
+                  color={isPlaying ? "primary" : "default"}
+                  size="small"
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="TTS 중지">
+                <IconButton 
+                  onClick={stopTTS}
+                  color="default"
+                  size="small"
+                >
+                  <StopIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
-          <Box sx={{ ml: 2, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ 
+            ml: { xs: 0, sm: 2 }, 
+            mt: { xs: 1, sm: 0 },
+            display: 'flex', 
+            justifyContent: { xs: 'center', sm: 'flex-start' },
+            alignItems: 'center', 
+            gap: 0.5 
+          }}>
             <Tooltip title={isRecording ? "녹음 중지" : "녹음 시작"}>
               <IconButton 
                 onClick={isRecording ? stopRecording : startRecording}
@@ -437,7 +483,11 @@ export default function PrayerResult({
           color="primary" 
           size="small"
           onClick={onSaveToPrayerList}
-          sx={{ minWidth: '100px' }}
+          sx={{ 
+            minWidth: { xs: '100%', sm: '100px' },
+            height: { xs: 36, sm: 40 },
+            mt: { xs: 1, sm: 0 }
+          }}
         >
           기도문 저장
         </Button>
