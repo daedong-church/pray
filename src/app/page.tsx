@@ -269,7 +269,7 @@ export default function Home() {
         <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ 
           fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
         }}>
-          기도문 작성 프로그램
+          기도문 작성
         </Typography>
 
         <Box sx={{ 
