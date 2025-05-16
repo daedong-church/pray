@@ -9,6 +9,7 @@ import { saveToWord } from '@/utils/word';
 import { saveSettings, loadSettings, savePrayer, loadPrayers, deletePrayer } from '@/utils/storage';
 import { printPrayer } from '@/utils/print';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { Prayer } from '../types/prayer';
 
 // 파일 상단에 버전 상수 추가
 const VERSION = '1.0.3';
@@ -265,6 +266,14 @@ export default function Home() {
     });
   };
 
+  // prayer 문자열을 Prayer 객체로 변환
+  const prayerObject: Prayer = {
+    id: '1', // 적절한 ID 값 설정
+    content: prayer, // 기존 prayer 문자열을 content로 사용
+    createdAt: new Date().toISOString(), // 현재 시간으로 설정
+    updatedAt: new Date().toISOString() // 현재 시간으로 설정
+  };
+
   return (
     <Container maxWidth="md">
       {/* 버전 표시 추가 */}
@@ -519,7 +528,7 @@ export default function Home() {
             기도문 출력/수정
           </Typography>
           <PrayerResult
-            prayer={prayer}
+            prayer={prayerObject}
             onEdit={handleEdit}
             onSave={handleSave}
             onPrint={handlePrint}
