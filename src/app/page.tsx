@@ -161,9 +161,18 @@ export default function Home() {
 
   // 기도문 저장 핸들러 수정
   const handleSaveToPrayerList = () => {
+    // 동일한 파일명이 있는지 확인
+    const existingPrayer = savedPrayers.find(p => 
+      new Date(p.date).toLocaleDateString() === new Date().toLocaleDateString() &&
+      p.serviceType === serviceType &&
+      p.style === style &&
+      p.audience === audience &&
+      p.length === length
+    );
+
     const newPrayer = {
-      id: new Date().getTime().toString(),
-      date: new Date().toISOString(),
+      id: existingPrayer ? existingPrayer.id : new Date().getTime().toString(),
+      date: existingPrayer ? existingPrayer.date : new Date().toISOString(),
       serviceType,
       style,
       audience,
@@ -171,34 +180,19 @@ export default function Home() {
       content: prayer
     };
 
-    // 동일한 파일명이 있는지 확인
-    const existingPrayer = savedPrayers.find(p => 
-      new Date(p.date).toLocaleDateString() === new Date(newPrayer.date).toLocaleDateString() &&
-      p.serviceType === newPrayer.serviceType &&
-      p.style === newPrayer.style &&
-      p.audience === newPrayer.audience &&
-      p.length === newPrayer.length
-    );
-
     if (existingPrayer) {
       // 동일한 파일명이 있는 경우
       setDialog({
         open: true,
         title: '기도문 수정',
-        message: '동일한 파일명의 기도문이 있습니다. 기존 기도문을 수정하시겠습니까?',
+        message: '기존 기도문을 수정하시겠습니까?',
         confirmAction: () => {
-          // 기존 ID를 유지하면서 내용 업데이트
-          const updatedPrayer = {
-            ...newPrayer,
-            id: existingPrayer.id
-          };
-
           // 저장소 업데이트
-          savePrayer(updatedPrayer);
+          savePrayer(newPrayer);
           
           // 상태 업데이트
           setSavedPrayers(prev => prev.map(p => 
-            p.id === existingPrayer.id ? updatedPrayer : p
+            p.id === existingPrayer.id ? newPrayer : p
           ));
 
           setSuccessMessage('기도문이 수정되었습니다.');
@@ -338,7 +332,7 @@ export default function Home() {
       {/* 기도문 작성 화면 */}
       <Paper elevation={3} sx={{ my: 4, p: 4 }}>
         <Typography variant="h5" component="h2" gutterBottom>
-          기도문 작성
+          기도문 생성
         </Typography>
         
         <Box component="form" onSubmit={handleSubmit}>
