@@ -1,14 +1,22 @@
+// 파일 최상단에 추가
+declare global {
+  interface Window {
+    lastPauseTime?: number;
+  }
+}
+
+import React, { useState, useRef, useEffect } from 'react';
 import { Box, Button, IconButton, Select, MenuItem, FormControl, InputLabel, Tooltip } from '@mui/material';
-import { useState, useEffect, useRef } from 'react';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import StopIcon from '@mui/icons-material/Stop';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import SaveIcon from '@mui/icons-material/Save';
+import { Prayer } from '../types/prayer';
 
 interface PrayerResultProps {
-  prayer: string;
+  prayer: Prayer;
   onEdit: () => void;
   onSave: (editedContent: string) => void;
   onPrint: () => void;
@@ -20,14 +28,15 @@ interface PrayerResultProps {
 // TTS 서비스 타입 정의
 type TTSService = 'web' | 'microsoft' | 'google';
 
-// 파일 최상단에 추가
+// window에 타입 확장
 declare global {
   interface Window {
     lastPauseTime?: number;
+    webkitSpeechSynthesis?: SpeechSynthesis;
   }
 }
 
-export default function PrayerResult({
+const PrayerResult: React.FC<PrayerResultProps> = ({
   prayer,
   onEdit,
   onSave,
@@ -35,9 +44,9 @@ export default function PrayerResult({
   onSaveToWord,
   onTTS,
   onSaveToPrayerList,
-}: PrayerResultProps) {
+}) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedPrayer, setEditedPrayer] = useState(prayer);
+  const [editedPrayer, setEditedPrayer] = useState(prayer.content);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
   const [currentHighlight, setCurrentHighlight] = useState<number>(-1);
@@ -59,17 +68,9 @@ export default function PrayerResult({
   const maxRetries = 3; // 최대 재시도 횟수
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // window에 타입 확장
-  declare global {
-    interface Window {
-      lastPauseTime?: number;
-      webkitSpeechSynthesis?: SpeechSynthesis;
-    }
-  }
-
   useEffect(() => {
-    setEditedPrayer(prayer);
-  }, [prayer]);
+    setEditedPrayer(prayer.content);
+  }, [prayer.content]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -818,4 +819,6 @@ export default function PrayerResult({
       </Box>
     </Box>
   );
-}
+};
+
+export default PrayerResult;
