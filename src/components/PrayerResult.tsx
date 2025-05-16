@@ -20,6 +20,13 @@ interface PrayerResultProps {
 // TTS 서비스 타입 정의
 type TTSService = 'web' | 'microsoft' | 'google';
 
+// 파일 최상단에 추가
+declare global {
+  interface Window {
+    lastPauseTime?: number;
+  }
+}
+
 export default function PrayerResult({
   prayer,
   onEdit,
