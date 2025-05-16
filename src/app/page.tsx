@@ -257,7 +257,23 @@ export default function Home() {
   };
 
   return (
-    <Container maxWidth="md">
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* 버전 표시 추가 */}
+      <Box sx={{ 
+        position: 'fixed', 
+        top: 0, 
+        right: 0, 
+        padding: '4px 8px', 
+        fontSize: '0.8rem', 
+        color: 'text.secondary',
+        backgroundColor: 'background.paper',
+        borderBottomLeftRadius: 1,
+        boxShadow: 1,
+        zIndex: 1000
+      }}>
+        ver 1.0.0
+      </Box>
+
       {/* 홈 화면 영역 */}
       <Paper elevation={3} sx={{ my: { xs: 2, sm: 3, md: 4 }, p: { xs: 2, sm: 3, md: 4 } }}>
         <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ 
