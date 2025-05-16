@@ -556,7 +556,7 @@ export default function PrayerResult({
   };
 
   return (
-    <Box>
+    <Box sx={{ position: 'relative' }}>
       <Box sx={{ 
         position: 'absolute', 
         top: 0, 
