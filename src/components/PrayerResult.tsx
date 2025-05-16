@@ -7,16 +7,6 @@ import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import SaveIcon from '@mui/icons-material/Save';
 
-// 버전 정보
-const VERSION = '1.0.0';
-
-declare global {
-  interface Window {
-    lastPauseTime?: number;
-    webkitSpeechSynthesis?: SpeechSynthesis;
-  }
-}
-
 interface PrayerResultProps {
   prayer: string;
   onEdit: () => void;
@@ -60,6 +50,15 @@ export default function PrayerResult({
   const pauseTimeRef = useRef<number>(0);
   const ttsRetryCountRef = useRef<number>(0);
   const maxRetries = 3; // 최대 재시도 횟수
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // window에 타입 확장
+  declare global {
+    interface Window {
+      lastPauseTime?: number;
+      webkitSpeechSynthesis?: SpeechSynthesis;
+    }
+  }
 
   useEffect(() => {
     setEditedPrayer(prayer);
@@ -188,125 +187,193 @@ export default function PrayerResult({
     // 재생 중인 경우 일시정지
     if (isPlaying) {
       try {
-        if (isMobile) {
-          // 모바일에서도 현재 위치 저장
-          pauseTimeRef.current = Date.now();
-          currentIndexRef.current = currentHighlight;
-          speechSynthesis.cancel();
-          isPausedRef.current = true;
-          setIsPlaying(false);
-        } else {
-          speechSynthesis.pause();
-          isPausedRef.current = true;
-          setIsPlaying(false);
+        // 현재 문장이 끝났는지 확인
+        const currentSentence = sentencesRef.current[currentIndexRef.current];
+        const isEndOfSentence = currentSentence && (currentSentence.endsWith('.') || currentSentence.endsWith(','));
+        
+        // 문장이 끝나지 않았거나 말하고 있는 중이면 일시정지 무시
+        if (!isEndOfSentence || speechSynthesis.speaking) {
+          console.log('문장 재생 중에는 일시정지할 수 없습니다.');
+          return;
         }
-      } catch (error) {
-        console.error('TTS 일시정지 중 오류:', error);
+
+        // 문장이 끝난 경우에만 일시정지 실행
+        speechSynthesis.pause();
+        console.log('TTS 일시정지됨');
+        isPausedRef.current = true;
+        pauseTimeRef.current = Date.now();
+        setIsPlaying(false);
+        setIsSpeaking(false);
+      } catch (e) {
+        console.error('일시정지 오류:', e);
+        speechSynthesis.cancel();
+        isPausedRef.current = false;
+        setIsPlaying(false);
+        setIsSpeaking(false);
       }
       return;
     }
 
-    // 일시정지 상태에서 재생
+    // 일시정지 상태에서 재생 버튼을 누른 경우
     if (isPausedRef.current) {
-      isPausedRef.current = false;
-      setIsPlaying(true);
-      
-      // 저장된 위치에서 재생 시작
-      if (currentIndexRef.current >= 0) {
-        speakNextSentence(sentencesRef.current, currentIndexRef.current);
+      try {
+        console.log('TTS 재개 시도');
+        
+        // 이전 utterance 정리
+        if (utteranceRef.current) {
+          speechSynthesis.cancel();
+          utteranceRef.current = null;
+        }
+        
+        // 현재 상태 초기화
+        isPausedRef.current = false;
+        setIsPlaying(true);
+        
+        // 현재 문장부터 다시 시작
+        if (currentIndexRef.current >= 0 && currentIndexRef.current < sentencesRef.current.length) {
+          console.log(`일시정지 해제: 인덱스 ${currentIndexRef.current}부터 재생`);
+          // 약간의 지연 후 재생 시작
+          setTimeout(() => {
+            if (!isPausedRef.current) {
+              speakNextSentence(sentencesRef.current, currentIndexRef.current);
+            }
+          }, 100);
+        }
+      } catch (e) {
+        console.error('재개 오류:', e);
+        resetTTSState();
       }
       return;
     }
 
     // 새로운 재생 시작
-    resetTTSState();
-    const sentences = splitSentences(editedPrayer);
-    sentencesRef.current = sentences;
-    currentIndexRef.current = -1;
+    setIsExpanded(true);
+    
+    if (sentencesRef.current.length === 0) {
+      const sentences = splitSentences(editedPrayer);
+      sentencesRef.current = sentences;
+      console.log(`문장 ${sentences.length}개로 분할됨`);
+    }
+    
+    if (currentIndexRef.current === -1) {
+      currentIndexRef.current = 0;
+    }
+    
+    console.log(`인덱스 ${currentIndexRef.current}부터 재생 시작`);
+    isPausedRef.current = false;
+    setCurrentHighlight(currentIndexRef.current);
+    speakNextSentence(sentencesRef.current, currentIndexRef.current);
     setIsPlaying(true);
-    speakNextSentence(sentences, 0);
   };
 
   const speakNextSentence = (sentences: string[], startIndex: number) => {
-    if (!speechSynthesis || startIndex >= sentences.length) {
+    if (!speechSynthesis) return;
+    
+    if (startIndex >= sentences.length) {
       resetTTSState();
       return;
     }
 
-    try {
-      const utterance = new SpeechSynthesisUtterance(sentences[startIndex]);
-      utteranceRef.current = utterance;
+    // 같은 문장을 여러 번 재생하는 것을 방지하기 위한 안전장치
+    if (utteranceRef.current && speechSynthesis.speaking) {
+      console.log('이미 문장을 재생 중입니다. 중복 재생 방지.');
+      return;
+    }
 
-      // 음성 설정
-      if (selectedTTS === 'web') {
-        const koreanVoice = voices.find(voice => 
-          voice.lang.includes('ko') && voice.name.includes('Neural')
-        ) || voices.find(voice => voice.lang.includes('ko'));
+    const utterance = new SpeechSynthesisUtterance(sentences[startIndex]);
+    utteranceRef.current = utterance;
+    utterance.lang = 'ko-KR';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
-        if (koreanVoice) {
-          utterance.voice = koreanVoice;
-        }
+    console.log(`문장 인덱스 ${startIndex} 재생: "${sentences[startIndex].substring(0, 20)}..."`);
+
+    // 모바일 환경에서는 기본 TTS만 사용
+    if (!isMobile) {
+      console.log('Selected TTS:', selectedTTS); // 디버깅용
+      
+      let koreanVoice: SpeechSynthesisVoice | undefined;
+      
+      if (selectedTTS === 'microsoft') {
+        koreanVoice = voices.find(voice => 
+          voice.lang.includes('ko') && voice.name.includes('Microsoft')
+        );
+      } else if (selectedTTS === 'google') {
+        koreanVoice = voices.find(voice => 
+          voice.lang.includes('ko') && voice.name.includes('Google')
+        );
+      } else {
+        koreanVoice = voices.find(voice => 
+          voice.lang.includes('ko')
+        );
       }
 
-      utterance.lang = 'ko-KR';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
+      console.log('Selected voice:', koreanVoice?.name || '기본 음성'); // 디버깅용
+      
+      if (koreanVoice) {
+        utterance.voice = koreanVoice;
+      }
+    }
 
-      // 이벤트 핸들러
-      utterance.onstart = () => {
-        setCurrentHighlight(startIndex);
-        currentIndexRef.current = startIndex;
-        scrollToHighlightedText();
-      };
+    // 문장 시작 시 재생 상태 설정
+    setIsPlaying(true);
+    setCurrentHighlight(startIndex);
+    setIsSpeaking(true);
 
-      utterance.onend = () => {
-        if (!isPausedRef.current) {
-          speakNextSentence(sentences, startIndex + 1);
-        }
-      };
+    utterance.onstart = () => {
+      console.log('문장 재생 시작');
+    };
 
-      utterance.onerror = (event) => {
-        console.error('TTS 오류:', event);
-        if (ttsRetryCountRef.current < maxRetries) {
-          ttsRetryCountRef.current++;
+    utterance.onend = () => {
+      console.log(`문장 인덱스 ${startIndex} 재생 완료`);
+      setIsSpeaking(false);
+      
+      if (!isPausedRef.current) {
+        currentIndexRef.current++;
+        setCurrentHighlight(currentIndexRef.current);
+        
+        if (currentIndexRef.current < sentences.length) {
+          // 다음 문장 재생 전에 1초 대기
           setTimeout(() => {
-            speakNextSentence(sentences, startIndex);
+            if (!isPausedRef.current) {
+              speakNextSentence(sentences, currentIndexRef.current);
+            }
           }, 1000);
         } else {
+          console.log('모든 문장 재생 완료');
           resetTTSState();
         }
-      };
-
-      // 모바일에서의 재생 처리 개선
-      if (isMobile) {
-        // 이전 재생이 있다면 취소
-        speechSynthesis.cancel();
-        // 약간의 지연 후 재생 시작
-        setTimeout(() => {
-          speechSynthesis.speak(utterance);
-        }, 100);
-      } else {
-        speechSynthesis.speak(utterance);
       }
-    } catch (error) {
-      console.error('TTS 재생 중 오류:', error);
+    };
+
+    utterance.onerror = (event) => {
+      // 정지 버튼을 눌렀을 때는 오류 메시지를 표시하지 않음
+      if (event.error !== 'interrupted') {
+        console.error('TTS 오류:', event);
+        alert('음성 재생 중 오류가 발생했습니다.');
+      }
+      resetTTSState();
+    };
+
+    try {
+      speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error('음성 재생 오류:', e);
       resetTTSState();
     }
   };
 
   // TTS 상태 초기화 함수
   const resetTTSState = () => {
-    if (speechSynthesis) {
-      speechSynthesis.cancel();
-    }
+    console.log('TTS 상태 초기화');
     setIsPlaying(false);
-    isPausedRef.current = false;
-    currentIndexRef.current = -1;
     setCurrentHighlight(-1);
-    pauseTimeRef.current = 0;
-    ttsRetryCountRef.current = 0;
+    currentIndexRef.current = -1;
+    isPausedRef.current = false;
     utteranceRef.current = null;
+    setIsExpanded(false);
+    setIsSpeaking(false);
   };
 
   const stopTTS = () => {
@@ -328,28 +395,34 @@ export default function PrayerResult({
   // 15초마다 SpeechSynthesis 상태를 확인하고 문제가 있으면 재설정
   useEffect(() => {
     if (!speechSynthesis) return;
-
+    
     const intervalId = setInterval(() => {
       // 재생 중이지만 SpeechSynthesis가 말하지 않는 경우 (버그 상황)
       if (isPlaying && !speechSynthesis.speaking && !isPausedRef.current) {
+        console.log('버그 감지: 재생 중이지만 말하지 않음');
+        // 현재 문장부터 다시 시작
         speakNextSentence(sentencesRef.current, currentIndexRef.current);
       }
+      
       // 일시정지 상태에서 15초 이상 지속되면 자동 재설정
+      // (일부 브라우저에서 일시정지 상태가 무한히 지속되는 버그 방지)
       if (isPausedRef.current) {
-        const pauseDuration = Date.now() - ((window as any).lastPauseTime ?? 0);
-        if (pauseDuration > 60000) {
+        console.log('일시정지 상태 점검');
+        const pauseDuration = Date.now() - (window.lastPauseTime || 0);
+        if (pauseDuration > 60000) { // 1분 이상 일시정지 상태
+          console.log('일시정지 시간 초과, 재설정');
           resetTTSState();
         }
       }
     }, 15000);
-
+    
     return () => clearInterval(intervalId);
   }, [isPlaying, speechSynthesis]);
 
   // 일시정지 시간 추적
   useEffect(() => {
     if (isPausedRef.current) {
-      (window as any).lastPauseTime = Date.now();
+      window.lastPauseTime = Date.now();
     }
   }, [isPausedRef.current]);
 
@@ -371,7 +444,6 @@ export default function PrayerResult({
 
   // 브라우저 visibility 변경 이벤트 처리
   useEffect(() => {
-    // 탭 전환 및 복구 처리 (TTS 오작동 방지)
     const handleVisibilityChange = () => {
       if (!speechSynthesis) return;
       
@@ -412,8 +484,6 @@ export default function PrayerResult({
               }
             } catch (e) {
               console.error('탭 복귀 후 재개 오류:', e);
-              
-              // 오류 발생 시 현재 위치에서 명시적 재시작
               isPausedRef.current = false;
               speakNextSentence(sentencesRef.current, currentIndexRef.current);
               setIsPlaying(true);
@@ -516,43 +586,49 @@ export default function PrayerResult({
     }
   };
 
+  // 일시정지 버튼 활성화 여부를 결정하는 함수
+  const isPauseButtonEnabled = () => {
+    if (!isPlaying) return false;
+    return !isSpeaking;
+  };
+
   return (
     <Box>
-      <Box
-        sx={{
+          <Box
+            sx={{
           mt: 2, 
           mb: 3,
           height: { xs: '300px', sm: '400px', md: '500px' },
           transition: 'height 0.3s ease-in-out',
           overflow: 'auto',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 1,
-          p: { xs: 2, sm: 3 },
-          backgroundColor: '#fff',
-          fontFamily: '"나눔명조", serif',
-          fontSize: { xs: '0.9rem', sm: '1rem' },
-          lineHeight: 1.8,
-          color: 'text.primary',
-          '& h2': {
-            color: 'primary.main',
-            fontSize: { xs: '1.1rem', sm: '1.2rem' },
-            fontWeight: 600,
-            mt: 3,
-            mb: 2,
-            '&:first-of-type': {
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: { xs: 2, sm: 3 },
+              backgroundColor: '#fff',
+              fontFamily: '"나눔명조", serif',
+              fontSize: { xs: '0.9rem', sm: '1rem' },
+              lineHeight: 1.8,
+              color: 'text.primary',
+              '& h2': {
+                color: 'primary.main',
+                fontSize: { xs: '1.1rem', sm: '1.2rem' },
+                fontWeight: 600,
+                mt: 3,
+                mb: 2,
+                '&:first-of-type': {
               mt: 0
-            }
-          },
-          '& blockquote': {
-            borderLeft: '4px solid',
-            borderColor: 'primary.light',
-            bgcolor: 'grey.50',
-            px: { xs: 1, sm: 2 },
-            py: { xs: 0.5, sm: 1 },
-            my: { xs: 1, sm: 2 },
-          },
-          '& p': {
+                }
+              },
+              '& blockquote': {
+                borderLeft: '4px solid',
+                borderColor: 'primary.light',
+                bgcolor: 'grey.50',
+                px: { xs: 1, sm: 2 },
+                py: { xs: 0.5, sm: 1 },
+                my: { xs: 1, sm: 2 },
+              },
+              '& p': {
             my: { xs: 1, sm: 1.5 }
           }
         }}
@@ -666,14 +742,17 @@ export default function PrayerResult({
               justifyContent: { xs: 'center', sm: 'flex-start' },
               gap: 0.5 
             }}>
-              <Tooltip title={isPlaying ? "일시정지" : "TTS 재생"}>
-                <IconButton 
-                  onClick={playTTS}
-                  color={isPlaying ? "primary" : "default"}
-                  size="small"
-                >
-                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-                </IconButton>
+              <Tooltip title={isPlaying ? (isPauseButtonEnabled() ? "일시정지" : "문장 재생 중에는 일시정지할 수 없습니다") : "TTS 재생"}>
+                <span>
+                  <IconButton 
+                    onClick={playTTS}
+                    color={isPlaying ? "primary" : "default"}
+                    size="small"
+                    disabled={isPlaying && !isPauseButtonEnabled()}
+                  >
+                    {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="TTS 중지">
                 <IconButton 

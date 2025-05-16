@@ -10,6 +10,9 @@ import { saveSettings, loadSettings, savePrayer, loadPrayers, deletePrayer } fro
 import { printPrayer } from '@/utils/print';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
+// 파일 상단에 버전 상수 추가
+const VERSION = '1.0.3';
+
 // SavedPrayer 타입 정의 추가
 interface SavedPrayer {
   id: string;
@@ -161,18 +164,9 @@ export default function Home() {
 
   // 기도문 저장 핸들러 수정
   const handleSaveToPrayerList = () => {
-    // 동일한 파일명이 있는지 확인
-    const existingPrayer = savedPrayers.find(p => 
-      new Date(p.date).toLocaleDateString() === new Date().toLocaleDateString() &&
-      p.serviceType === serviceType &&
-      p.style === style &&
-      p.audience === audience &&
-      p.length === length
-    );
-
     const newPrayer = {
-      id: existingPrayer ? existingPrayer.id : new Date().getTime().toString(),
-      date: existingPrayer ? existingPrayer.date : new Date().toISOString(),
+      id: new Date().getTime().toString(),
+      date: new Date().toISOString(),
       serviceType,
       style,
       audience,
@@ -180,19 +174,34 @@ export default function Home() {
       content: prayer
     };
 
+    // 동일한 파일명이 있는지 확인
+    const existingPrayer = savedPrayers.find(p => 
+      new Date(p.date).toLocaleDateString() === new Date(newPrayer.date).toLocaleDateString() &&
+      p.serviceType === newPrayer.serviceType &&
+      p.style === newPrayer.style &&
+      p.audience === newPrayer.audience &&
+      p.length === newPrayer.length
+    );
+
     if (existingPrayer) {
       // 동일한 파일명이 있는 경우
       setDialog({
         open: true,
         title: '기도문 수정',
-        message: '기존 기도문을 수정하시겠습니까?',
+        message: '동일한 파일명의 기도문이 있습니다. 기존 기도문을 수정하시겠습니까?',
         confirmAction: () => {
+          // 기존 ID를 유지하면서 내용 업데이트
+          const updatedPrayer = {
+            ...newPrayer,
+            id: existingPrayer.id
+          };
+
           // 저장소 업데이트
-          savePrayer(newPrayer);
+          savePrayer(updatedPrayer);
           
           // 상태 업데이트
           setSavedPrayers(prev => prev.map(p => 
-            p.id === existingPrayer.id ? newPrayer : p
+            p.id === existingPrayer.id ? updatedPrayer : p
           ));
 
           setSuccessMessage('기도문이 수정되었습니다.');
@@ -257,21 +266,15 @@ export default function Home() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="md">
       {/* 버전 표시 추가 */}
       <Box sx={{ 
-        position: 'fixed', 
-        top: 0, 
-        right: 0, 
-        padding: '4px 8px', 
-        fontSize: '0.8rem', 
+        textAlign: 'right',
+        mb: 1,
         color: 'text.secondary',
-        backgroundColor: 'background.paper',
-        borderBottomLeftRadius: 1,
-        boxShadow: 1,
-        zIndex: 1000
+        fontSize: '0.8rem'
       }}>
-        ver 1.0.2
+        ver {VERSION}
       </Box>
 
       {/* 홈 화면 영역 */}
