@@ -172,11 +172,12 @@ git clone [GitHub 저장소 URL]
 2. 다른 컴퓨터로 이동할 때
 # 현재 작업 내용 저장
 git add .
-git commit -m "작업 내용 저장"
+git commit -m "ver 1.0.3"
 # GitHub에 푸시
 git push origin main  # 또는 현재 작업 중인 브랜치
 
 3. 새로운 컴퓨터에서 작업 시작할 때
+git fetch origin
 # 최신 내용 가져오기
 git pull origin main  # 또는 현재 작업 중인 브랜치
 
@@ -185,8 +186,6 @@ git pull origin main  # 또는 현재 작업 중인 브랜치
 # 작업 후에는 반드시 git commit과 git push로 저장하기
 
 
-
-3. 
 
 
 # 소스 받기
