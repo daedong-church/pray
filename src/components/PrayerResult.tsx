@@ -189,7 +189,9 @@ export default function PrayerResult({
     if (isPlaying) {
       try {
         if (isMobile) {
-          // 모바일에서는 cancel()을 사용하여 일시정지
+          // 모바일에서도 현재 위치 저장
+          pauseTimeRef.current = Date.now();
+          currentIndexRef.current = currentHighlight;
           speechSynthesis.cancel();
           isPausedRef.current = true;
           setIsPlaying(false);
@@ -198,154 +200,113 @@ export default function PrayerResult({
           isPausedRef.current = true;
           setIsPlaying(false);
         }
-      } catch (e) {
-        console.error('일시정지 오류:', e);
-        speechSynthesis.cancel();
-        isPausedRef.current = false;
-        setIsPlaying(false);
+      } catch (error) {
+        console.error('TTS 일시정지 중 오류:', error);
       }
       return;
     }
 
-    // 일시정지 상태에서 재생 버튼을 누른 경우
+    // 일시정지 상태에서 재생
     if (isPausedRef.current) {
-      try {
-        if (isMobile) {
-          // 모바일에서는 현재 인덱스부터 다시 시작
-          const currentIndex = currentIndexRef.current;
-          if (currentIndex >= 0 && currentIndex < sentencesRef.current.length) {
-            isPausedRef.current = false;
-            speakNextSentence(sentencesRef.current, currentIndex);
-            setIsPlaying(true);
-          }
-        } else {
-          if (!speechSynthesis.speaking && !speechSynthesis.pending) {
-            // 현재 문장이 끝난 상태 - 다음 문장부터 재생
-            if (currentIndexRef.current < sentencesRef.current.length - 1) {
-              currentIndexRef.current++;
-              setCurrentHighlight(currentIndexRef.current);
-              setTimeout(() => {
-                speakNextSentence(sentencesRef.current, currentIndexRef.current);
-                setIsPlaying(true);
-              }, 100);
-            }
-          } else {
-            speechSynthesis.resume();
-            isPausedRef.current = false;
-            setIsPlaying(true);
-          }
-        }
-      } catch (e) {
-        console.error('재개 오류:', e);
-        // 오류 발생 시 현재 인덱스부터 다시 시작
-        isPausedRef.current = false;
-        const currentIndex = currentIndexRef.current;
-        if (currentIndex >= 0 && currentIndex < sentencesRef.current.length) {
-          speakNextSentence(sentencesRef.current, currentIndex);
-          setIsPlaying(true);
-        }
+      isPausedRef.current = false;
+      setIsPlaying(true);
+      
+      // 저장된 위치에서 재생 시작
+      if (currentIndexRef.current >= 0) {
+        speakNextSentence(sentencesRef.current, currentIndexRef.current);
       }
       return;
     }
 
     // 새로운 재생 시작
-    setIsExpanded(true);
-    
-    // 아직 분할된 문장이 없다면 먼저 분할
-    if (sentencesRef.current.length === 0) {
-      const sentences = splitSentences(editedPrayer);
-      sentencesRef.current = sentences;
-    }
-    
-    // 현재 인덱스가 -1이면 처음부터 시작
-    if (currentIndexRef.current === -1) {
-      currentIndexRef.current = 0;
-    }
-    
-    isPausedRef.current = false;
-    speakNextSentence(sentencesRef.current, currentIndexRef.current);
+    resetTTSState();
+    const sentences = splitSentences(editedPrayer);
+    sentencesRef.current = sentences;
+    currentIndexRef.current = -1;
     setIsPlaying(true);
+    speakNextSentence(sentences, 0);
   };
 
   const speakNextSentence = (sentences: string[], startIndex: number) => {
-    if (!speechSynthesis) return;
-    
-    if (startIndex >= sentences.length) {
+    if (!speechSynthesis || startIndex >= sentences.length) {
       resetTTSState();
       return;
     }
 
-    // 같은 문장을 여러 번 재생하는 것을 방지하기 위한 안전장치
-    if (utteranceRef.current && speechSynthesis.speaking) {
-      return;
-    }
+    try {
+      const utterance = new SpeechSynthesisUtterance(sentences[startIndex]);
+      utteranceRef.current = utterance;
 
-    const utterance = new SpeechSynthesisUtterance(sentences[startIndex]);
-    utteranceRef.current = utterance;
-    utterance.lang = 'ko-KR';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
+      // 음성 설정
+      if (selectedTTS === 'web') {
+        const koreanVoice = voices.find(voice => 
+          voice.lang.includes('ko') && voice.name.includes('Neural')
+        ) || voices.find(voice => voice.lang.includes('ko'));
 
-    // 모바일 환경에서는 기본 TTS만 사용
-    if (!isMobile) {
-      let koreanVoice: SpeechSynthesisVoice | undefined;
-      
-      if (selectedTTS === 'microsoft') {
-        koreanVoice = voices.find(voice => 
-          voice.lang.includes('ko') && voice.name.includes('Microsoft')
-        );
-      } else if (selectedTTS === 'google') {
-        koreanVoice = voices.find(voice => 
-          voice.lang.includes('ko') && voice.name.includes('Google')
-        );
-      } else {
-        koreanVoice = voices.find(voice => 
-          voice.lang.includes('ko')
-        );
+        if (koreanVoice) {
+          utterance.voice = koreanVoice;
+        }
       }
-      
-      if (koreanVoice) {
-        utterance.voice = koreanVoice;
-      }
-    }
 
-    utterance.onend = () => {
-      if (!isPausedRef.current) {
-        currentIndexRef.current++;
-        setCurrentHighlight(currentIndexRef.current);
-        
-        if (currentIndexRef.current < sentences.length) {
-          // 다음 문장 재생 전 약간의 지연 추가 (연속 재생 버그 방지)
+      utterance.lang = 'ko-KR';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // 이벤트 핸들러
+      utterance.onstart = () => {
+        setCurrentHighlight(startIndex);
+        currentIndexRef.current = startIndex;
+        scrollToHighlightedText();
+      };
+
+      utterance.onend = () => {
+        if (!isPausedRef.current) {
+          speakNextSentence(sentences, startIndex + 1);
+        }
+      };
+
+      utterance.onerror = (event) => {
+        console.error('TTS 오류:', event);
+        if (ttsRetryCountRef.current < maxRetries) {
+          ttsRetryCountRef.current++;
           setTimeout(() => {
-            speakNextSentence(sentences, currentIndexRef.current);
-          }, 50);
+            speakNextSentence(sentences, startIndex);
+          }, 1000);
         } else {
           resetTTSState();
         }
-      }
-    };
+      };
 
-    utterance.onerror = (event) => {
-      if (event.error !== 'interrupted') {
-        alert('음성 재생 중 오류가 발생했습니다.');
+      // 모바일에서의 재생 처리 개선
+      if (isMobile) {
+        // 이전 재생이 있다면 취소
+        speechSynthesis.cancel();
+        // 약간의 지연 후 재생 시작
+        setTimeout(() => {
+          speechSynthesis.speak(utterance);
+        }, 100);
+      } else {
+        speechSynthesis.speak(utterance);
       }
+    } catch (error) {
+      console.error('TTS 재생 중 오류:', error);
       resetTTSState();
-    };
-
-    setCurrentHighlight(startIndex);
-    speechSynthesis.speak(utterance);
+    }
   };
 
   // TTS 상태 초기화 함수
   const resetTTSState = () => {
-    console.log('TTS 상태 초기화');
+    if (speechSynthesis) {
+      speechSynthesis.cancel();
+    }
     setIsPlaying(false);
-    setCurrentHighlight(-1);
-    currentIndexRef.current = -1;
     isPausedRef.current = false;
+    currentIndexRef.current = -1;
+    setCurrentHighlight(-1);
+    pauseTimeRef.current = 0;
+    ttsRetryCountRef.current = 0;
     utteranceRef.current = null;
-    setIsExpanded(false);
   };
 
   const stopTTS = () => {
@@ -556,20 +517,7 @@ export default function PrayerResult({
   };
 
   return (
-    <Box sx={{ position: 'relative' }}>
-      <Box sx={{ 
-        position: 'absolute', 
-        top: 0, 
-        right: 0, 
-        padding: '4px 8px', 
-        fontSize: '0.8rem', 
-        color: 'text.secondary',
-        backgroundColor: 'background.paper',
-        borderBottomLeftRadius: 1,
-        boxShadow: 1
-      }}>
-        ver {VERSION}
-      </Box>
+    <Box>
       <Box
         sx={{
           mt: 2, 
