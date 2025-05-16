@@ -271,7 +271,7 @@ export default function Home() {
         boxShadow: 1,
         zIndex: 1000
       }}>
-        ver 1.0.1
+        ver 1.0.2
       </Box>
 
       {/* 홈 화면 영역 */}

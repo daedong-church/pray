@@ -189,9 +189,7 @@ export default function PrayerResult({
     if (isPlaying) {
       try {
         if (isMobile) {
-          // 모바일에서도 현재 위치 저장
-          pauseTimeRef.current = Date.now();
-          currentIndexRef.current = currentHighlight;
+          // 모바일에서는 cancel()을 사용하여 일시정지
           speechSynthesis.cancel();
           isPausedRef.current = true;
           setIsPlaying(false);
@@ -210,8 +208,6 @@ export default function PrayerResult({
     if (isPausedRef.current) {
       isPausedRef.current = false;
       setIsPlaying(true);
-      
-      // 저장된 위치에서 재생 시작
       if (currentIndexRef.current >= 0) {
         speakNextSentence(sentencesRef.current, currentIndexRef.current);
       }
@@ -278,24 +274,13 @@ export default function PrayerResult({
         }
       };
 
-      // 모바일에서의 재생 처리 개선
-      if (isMobile) {
-        // 이전 재생이 있다면 취소
-        speechSynthesis.cancel();
-        // 약간의 지연 후 재생 시작
-        setTimeout(() => {
-          speechSynthesis.speak(utterance);
-        }, 100);
-      } else {
-        speechSynthesis.speak(utterance);
-      }
+      speechSynthesis.speak(utterance);
     } catch (error) {
       console.error('TTS 재생 중 오류:', error);
       resetTTSState();
     }
   };
 
-  // TTS 상태 초기화 함수
   const resetTTSState = () => {
     if (speechSynthesis) {
       speechSynthesis.cancel();
